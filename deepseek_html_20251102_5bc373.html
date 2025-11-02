@@ -1,0 +1,902 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>自定义锁屏</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', 'Microsoft YaHei', sans-serif;
+        }
+        
+        body {
+            background: #000;
+            color: white;
+            height: 100vh;
+            overflow: hidden;
+            position: relative;
+            transition: background 0.5s;
+        }
+        
+        #backgroundVideo, #backgroundImage {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            z-index: -1;
+            opacity: 0;
+            transition: opacity 1s;
+        }
+        
+        #backgroundImage.active, #backgroundVideo.active {
+            opacity: 1;
+        }
+        
+        .container {
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            position: relative;
+            padding: 20px;
+        }
+        
+        .time-display {
+            text-align: center;
+            padding: 20px;
+            border-radius: 15px;
+            background: rgba(0, 0, 0, 0.5);
+            backdrop-filter: blur(10px);
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+            transition: all 0.5s;
+            user-select: none;
+            cursor: move;
+            position: absolute;
+        }
+        
+        .time {
+            font-size: 5rem;
+            font-weight: 300;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 10px rgba(0, 0, 0, 0.5);
+        }
+        
+        .date {
+            font-size: 1.5rem;
+            opacity: 0.9;
+            text-shadow: 1px 1px 5px rgba(0, 0, 0, 0.5);
+        }
+        
+        .controls {
+            position: absolute;
+            bottom: 30px;
+            right: 30px;
+            display: flex;
+            gap: 15px;
+        }
+        
+        .btn {
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.2);
+            border: none;
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.3s;
+            backdrop-filter: blur(10px);
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+        }
+        
+        .btn:hover {
+            background: rgba(255, 255, 255, 0.3);
+            transform: scale(1.1);
+        }
+        
+        .settings-panel {
+            position: absolute;
+            top: 0;
+            right: -400px;
+            width: 380px;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.8);
+            backdrop-filter: blur(20px);
+            padding: 30px;
+            overflow-y: auto;
+            transition: right 0.5s;
+            z-index: 100;
+        }
+        
+        .settings-panel.active {
+            right: 0;
+        }
+        
+        .settings-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 30px;
+            padding-bottom: 15px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        
+        .settings-title {
+            font-size: 1.5rem;
+            font-weight: 500;
+        }
+        
+        .close-btn {
+            background: none;
+            border: none;
+            color: white;
+            font-size: 1.5rem;
+            cursor: pointer;
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: background 0.3s;
+        }
+        
+        .close-btn:hover {
+            background: rgba(255, 255, 255, 0.1);
+        }
+        
+        .settings-section {
+            margin-bottom: 30px;
+        }
+        
+        .section-title {
+            font-size: 1.2rem;
+            margin-bottom: 15px;
+            color: #4dabf7;
+        }
+        
+        .setting-group {
+            margin-bottom: 20px;
+        }
+        
+        .setting-label {
+            display: block;
+            margin-bottom: 8px;
+            font-size: 0.9rem;
+            opacity: 0.8;
+        }
+        
+        .color-input {
+            width: 100%;
+            height: 40px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        
+        .select-input, .text-input {
+            width: 100%;
+            padding: 10px 15px;
+            border-radius: 5px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            background: rgba(255, 255, 255, 0.1);
+            color: white;
+            font-size: 1rem;
+        }
+        
+        .range-input {
+            width: 100%;
+        }
+        
+        .theme-options {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 15px;
+        }
+        
+        .theme-option {
+            height: 80px;
+            border-radius: 10px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 500;
+            transition: all 0.3s;
+            border: 2px solid transparent;
+        }
+        
+        .theme-option.active {
+            border-color: #4dabf7;
+            box-shadow: 0 0 15px rgba(77, 171, 247, 0.5);
+        }
+        
+        .file-input-container {
+            position: relative;
+            overflow: hidden;
+            display: inline-block;
+            width: 100%;
+        }
+        
+        .file-input {
+            position: absolute;
+            left: 0;
+            top: 0;
+            opacity: 0;
+            width: 100%;
+            height: 100%;
+            cursor: pointer;
+        }
+        
+        .file-input-label {
+            display: block;
+            padding: 12px 15px;
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 5px;
+            text-align: center;
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+        
+        .file-input-label:hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
+        
+        .checkbox-group {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .checkbox-input {
+            width: 20px;
+            height: 20px;
+        }
+        
+        .radio-group {
+            display: flex;
+            gap: 15px;
+        }
+        
+        .radio-option {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+        
+        .radio-input {
+            width: 18px;
+            height: 18px;
+        }
+        
+        .reset-btn {
+            width: 100%;
+            padding: 12px;
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 5px;
+            color: white;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: background 0.3s;
+            margin-top: 10px;
+        }
+        
+        .reset-btn:hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
+        
+        .overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 99;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.5s;
+        }
+        
+        .overlay.active {
+            opacity: 1;
+            pointer-events: all;
+        }
+        
+        @media (max-width: 768px) {
+            .settings-panel {
+                width: 100%;
+                right: -100%;
+            }
+            
+            .time {
+                font-size: 3.5rem;
+            }
+            
+            .date {
+                font-size: 1.2rem;
+            }
+            
+            .controls {
+                bottom: 20px;
+                right: 20px;
+            }
+        }
+        
+        @media (max-width: 480px) {
+            .time {
+                font-size: 2.5rem;
+            }
+            
+            .date {
+                font-size: 1rem;
+            }
+            
+            .theme-options {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <video id="backgroundVideo" loop muted>
+        <!-- 默认视频背景 -->
+        <source src="https://assets.mixkit.co/videos/preview/mixkit-tree-with-yellow-flowers-1173-large.mp4" type="video/mp4">
+    </video>
+    <div id="backgroundImage"></div>
+    
+    <div class="container">
+        <div class="time-display" id="timeDisplay">
+            <div class="time" id="time">00:00:00</div>
+            <div class="date" id="date">2023年1月1日 星期日</div>
+        </div>
+    </div>
+    
+    <div class="controls">
+        <button class="btn" id="settingsBtn">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M12 15C13.6569 15 15 13.6569 15 12C15 10.3431 13.6569 9 12 9C10.3431 9 9 10.3431 9 12C9 13.6569 10.3431 15 12 15Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                <path d="M19.4 15C19.2669 15.3031 19.1342 15.6062 19.0015 15.9094C18.917 16.1056 18.8326 16.3018 18.7481 16.4981C18.6133 16.8362 18.4785 17.1744 18.3438 17.5125C18.0797 18.1719 17.8156 18.8313 17.5516 19.4906C17.4338 19.7813 17.3159 20.0719 17.1981 20.3625C17.0775 20.6578 16.9569 20.9531 16.8363 21.2484C16.7672 21.4219 16.6981 21.5953 16.629 21.7688C16.5031 22.0688 16.3772 22.3688 16.2513 22.6688L16.0313 23.25H7.96875L7.74872 22.6688C7.62282 22.3688 7.49691 22.0688 7.371 21.7688C7.30191 21.5953 7.23282 21.4219 7.16372 21.2484C7.04313 20.9531 6.92254 20.6578 6.80195 20.3625C6.68414 20.0719 6.56633 19.7813 6.44852 19.4906C6.18445 18.8313 5.92039 18.1719 5.65633 17.5125C5.52158 17.1744 5.38683 16.8362 5.25208 16.4981C5.16758 16.3018 5.08308 16.1056 4.99858 15.9094C4.86586 15.6062 4.73314 15.3031 4.60042 15C4.73314 14.6969 4.86586 14.3938 4.99858 14.0906C5.08308 13.8944 5.16758 13.6982 5.25208 13.5019C5.38683 13.1638 5.52158 12.8256 5.65633 12.4875C5.92039 11.8281 6.18445 11.1687 6.44852 10.5094C6.56633 10.2187 6.68414 9.92813 6.80195 9.6375C6.92254 9.34219 7.04313 9.04688 7.16372 8.75156C7.23282 8.57813 7.30191 8.40469 7.371 8.23125C7.49691 7.93125 7.62282 7.63125 7.74872 7.33125L7.96875 6.75H16.0313L16.2513 7.33125C16.3772 7.63125 16.5031 7.93125 16.629 8.23125C16.6981 8.40469 16.7672 8.57813 16.8363 8.75156C16.9569 9.04688 17.0775 9.34219 17.1981 9.6375C17.3159 9.92813 17.4338 10.2187 17.5516 10.5094C17.8156 11.1687 18.0797 11.8281 18.3438 12.4875C18.4785 12.8256 18.6133 13.1638 18.7481 13.5019C18.8326 13.6982 18.917 13.8944 19.0015 14.0906C19.1342 14.3938 19.2669 14.6969 19.4 15Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+        </button>
+    </div>
+    
+    <div class="overlay" id="overlay"></div>
+    
+    <div class="settings-panel" id="settingsPanel">
+        <div class="settings-header">
+            <h2 class="settings-title">锁屏设置</h2>
+            <button class="close-btn" id="closeBtn">&times;</button>
+        </div>
+        
+        <div class="settings-section">
+            <h3 class="section-title">时间设置</h3>
+            
+            <div class="setting-group">
+                <label class="setting-label">时间颜色</label>
+                <input type="color" class="color-input" id="timeColor" value="#ffffff">
+            </div>
+            
+            <div class="setting-group">
+                <label class="setting-label">日期颜色</label>
+                <input type="color" class="color-input" id="dateColor" value="#cccccc">
+            </div>
+            
+            <div class="setting-group">
+                <label class="setting-label">时间字体</label>
+                <select class="select-input" id="timeFont">
+                    <option value="'Segoe UI', sans-serif">Segoe UI</option>
+                    <option value="Arial, sans-serif">Arial</option>
+                    <option value="'Microsoft YaHei', sans-serif">微软雅黑</option>
+                    <option value="'Helvetica Neue', sans-serif">Helvetica Neue</option>
+                    <option value="'Times New Roman', serif">Times New Roman</option>
+                    <option value="'Courier New', monospace">Courier New</option>
+                </select>
+            </div>
+            
+            <div class="setting-group">
+                <label class="setting-label">时间大小</label>
+                <input type="range" class="range-input" id="timeSize" min="2" max="10" step="0.1" value="5">
+                <span id="timeSizeValue">5rem</span>
+            </div>
+            
+            <div class="setting-group">
+                <label class="setting-label">拖拽移动时间位置</label>
+                <div class="checkbox-group">
+                    <input type="checkbox" class="checkbox-input" id="dragEnabled" checked>
+                    <label for="dragEnabled">启用拖拽</label>
+                </div>
+            </div>
+        </div>
+        
+        <div class="settings-section">
+            <h3 class="section-title">背景设置</h3>
+            
+            <div class="setting-group">
+                <label class="setting-label">背景类型</label>
+                <div class="radio-group">
+                    <div class="radio-option">
+                        <input type="radio" id="bgTypeColor" name="bgType" class="radio-input" value="color" checked>
+                        <label for="bgTypeColor">颜色</label>
+                    </div>
+                    <div class="radio-option">
+                        <input type="radio" id="bgTypeImage" name="bgType" class="radio-input" value="image">
+                        <label for="bgTypeImage">图片</label>
+                    </div>
+                    <div class="radio-option">
+                        <input type="radio" id="bgTypeVideo" name="bgType" class="radio-input" value="video">
+                        <label for="bgTypeVideo">视频</label>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="setting-group" id="colorBgGroup">
+                <label class="setting-label">背景颜色</label>
+                <input type="color" class="color-input" id="backgroundColor" value="#000000">
+            </div>
+            
+            <div class="setting-group" id="imageBgGroup" style="display: none;">
+                <label class="setting-label">背景图片</label>
+                <div class="file-input-container">
+                    <input type="file" class="file-input" id="backgroundImageInput" accept="image/*">
+                    <label class="file-input-label" for="backgroundImageInput">选择图片</label>
+                </div>
+            </div>
+            
+            <div class="setting-group" id="videoBgGroup" style="display: none;">
+                <label class="setting-label">背景视频</label>
+                <div class="file-input-container">
+                    <input type="file" class="file-input" id="backgroundVideoInput" accept="video/*">
+                    <label class="file-input-label" for="backgroundVideoInput">选择视频</label>
+                </div>
+            </div>
+        </div>
+        
+        <div class="settings-section">
+            <h3 class="section-title">主题设置</h3>
+            
+            <div class="theme-options">
+                <div class="theme-option" data-theme="default" style="background: linear-gradient(135deg, #1a2a6c, #b21f1f, #fdbb2d);">默认</div>
+                <div class="theme-option" data-theme="dark" style="background: #121212;">深色</div>
+                <div class="theme-option" data-theme="blue" style="background: linear-gradient(135deg, #2196F3, #1976D2);">蓝色</div>
+                <div class="theme-option" data-theme="purple" style="background: linear-gradient(135deg, #7B1FA2, #4A148C);">紫色</div>
+                <div class="theme-option" data-theme="nature" style="background: linear-gradient(135deg, #388E3C, #1B5E20);">自然</div>
+                <div class="theme-option" data-theme="sunset" style="background: linear-gradient(135deg, #FF9800, #F44336);">日落</div>
+            </div>
+        </div>
+        
+        <button class="reset-btn" id="resetBtn">恢复默认设置</button>
+    </div>
+
+    <script>
+        // DOM元素
+        const timeDisplay = document.getElementById('timeDisplay');
+        const timeElement = document.getElementById('time');
+        const dateElement = document.getElementById('date');
+        const settingsBtn = document.getElementById('settingsBtn');
+        const closeBtn = document.getElementById('closeBtn');
+        const settingsPanel = document.getElementById('settingsPanel');
+        const overlay = document.getElementById('overlay');
+        const resetBtn = document.getElementById('resetBtn');
+        
+        // 时间设置
+        const timeColor = document.getElementById('timeColor');
+        const dateColor = document.getElementById('dateColor');
+        const timeFont = document.getElementById('timeFont');
+        const timeSize = document.getElementById('timeSize');
+        const timeSizeValue = document.getElementById('timeSizeValue');
+        const dragEnabled = document.getElementById('dragEnabled');
+        
+        // 背景设置
+        const bgTypeColor = document.getElementById('bgTypeColor');
+        const bgTypeImage = document.getElementById('bgTypeImage');
+        const bgTypeVideo = document.getElementById('bgTypeVideo');
+        const backgroundColor = document.getElementById('backgroundColor');
+        const backgroundImageInput = document.getElementById('backgroundImageInput');
+        const backgroundVideoInput = document.getElementById('backgroundVideoInput');
+        const colorBgGroup = document.getElementById('colorBgGroup');
+        const imageBgGroup = document.getElementById('imageBgGroup');
+        const videoBgGroup = document.getElementById('videoBgGroup');
+        const backgroundImage = document.getElementById('backgroundImage');
+        const backgroundVideo = document.getElementById('backgroundVideo');
+        
+        // 主题设置
+        const themeOptions = document.querySelectorAll('.theme-option');
+        
+        // 初始化
+        function init() {
+            // 加载保存的设置
+            loadSettings();
+            
+            // 更新时间
+            updateTime();
+            setInterval(updateTime, 1000);
+            
+            // 设置事件监听器
+            setupEventListeners();
+            
+            // 初始化背景
+            updateBackground();
+        }
+        
+        // 更新时间
+        function updateTime() {
+            const now = new Date();
+            
+            // 格式化时间
+            const hours = String(now.getHours()).padStart(2, '0');
+            const minutes = String(now.getMinutes()).padStart(2, '0');
+            const seconds = String(now.getSeconds()).padStart(2, '0');
+            
+            timeElement.textContent = `${hours}:${minutes}:${seconds}`;
+            
+            // 格式化日期
+            const year = now.getFullYear();
+            const month = now.getMonth() + 1;
+            const day = now.getDate();
+            const weekDays = ['星期日', '星期一', '星期二', '星期三', '星期四', '星期五', '星期六'];
+            const weekDay = weekDays[now.getDay()];
+            
+            dateElement.textContent = `${year}年${month}月${day}日 ${weekDay}`;
+        }
+        
+        // 设置事件监听器
+        function setupEventListeners() {
+            // 设置按钮
+            settingsBtn.addEventListener('click', () => {
+                settingsPanel.classList.add('active');
+                overlay.classList.add('active');
+            });
+            
+            // 关闭按钮
+            closeBtn.addEventListener('click', closeSettings);
+            overlay.addEventListener('click', closeSettings);
+            
+            // 时间设置
+            timeColor.addEventListener('input', () => {
+                timeElement.style.color = timeColor.value;
+                saveSettings();
+            });
+            
+            dateColor.addEventListener('input', () => {
+                dateElement.style.color = dateColor.value;
+                saveSettings();
+            });
+            
+            timeFont.addEventListener('change', () => {
+                timeDisplay.style.fontFamily = timeFont.value;
+                saveSettings();
+            });
+            
+            timeSize.addEventListener('input', () => {
+                const size = `${timeSize.value}rem`;
+                timeElement.style.fontSize = size;
+                timeSizeValue.textContent = size;
+                saveSettings();
+            });
+            
+            // 背景设置
+            bgTypeColor.addEventListener('change', updateBackgroundType);
+            bgTypeImage.addEventListener('change', updateBackgroundType);
+            bgTypeVideo.addEventListener('change', updateBackgroundType);
+            
+            backgroundColor.addEventListener('input', () => {
+                document.body.style.background = backgroundColor.value;
+                saveSettings();
+            });
+            
+            backgroundImageInput.addEventListener('change', (e) => {
+                const file = e.target.files[0];
+                if (file) {
+                    const reader = new FileReader();
+                    reader.onload = (event) => {
+                        backgroundImage.style.backgroundImage = `url(${event.target.result})`;
+                        backgroundImage.classList.add('active');
+                        saveSettings();
+                    };
+                    reader.readAsDataURL(file);
+                }
+            });
+            
+            backgroundVideoInput.addEventListener('change', (e) => {
+                const file = e.target.files[0];
+                if (file) {
+                    const url = URL.createObjectURL(file);
+                    backgroundVideo.src = url;
+                    backgroundVideo.classList.add('active');
+                    backgroundVideo.play();
+                    saveSettings();
+                }
+            });
+            
+            // 主题设置
+            themeOptions.forEach(option => {
+                option.addEventListener('click', () => {
+                    // 移除所有激活状态
+                    themeOptions.forEach(opt => opt.classList.remove('active'));
+                    // 添加当前激活状态
+                    option.classList.add('active');
+                    
+                    // 应用主题
+                    applyTheme(option.dataset.theme);
+                    saveSettings();
+                });
+            });
+            
+            // 重置按钮
+            resetBtn.addEventListener('click', resetSettings);
+            
+            // 拖拽功能
+            setupDragging();
+        }
+        
+        // 关闭设置面板
+        function closeSettings() {
+            settingsPanel.classList.remove('active');
+            overlay.classList.remove('active');
+        }
+        
+        // 更新背景类型
+        function updateBackgroundType() {
+            // 隐藏所有背景组
+            colorBgGroup.style.display = 'none';
+            imageBgGroup.style.display = 'none';
+            videoBgGroup.style.display = 'none';
+            
+            // 隐藏所有背景元素
+            backgroundImage.classList.remove('active');
+            backgroundVideo.classList.remove('active');
+            
+            // 显示选中的背景组
+            if (bgTypeColor.checked) {
+                colorBgGroup.style.display = 'block';
+                document.body.style.background = backgroundColor.value;
+            } else if (bgTypeImage.checked) {
+                imageBgGroup.style.display = 'block';
+                backgroundImage.classList.add('active');
+            } else if (bgTypeVideo.checked) {
+                videoBgGroup.style.display = 'block';
+                backgroundVideo.classList.add('active');
+                backgroundVideo.play();
+            }
+            
+            saveSettings();
+        }
+        
+        // 更新背景
+        function updateBackground() {
+            if (bgTypeColor.checked) {
+                document.body.style.background = backgroundColor.value;
+            } else if (bgTypeImage.checked) {
+                backgroundImage.classList.add('active');
+            } else if (bgTypeVideo.checked) {
+                backgroundVideo.classList.add('active');
+                backgroundVideo.play();
+            }
+        }
+        
+        // 应用主题
+        function applyTheme(theme) {
+            switch(theme) {
+                case 'default':
+                    timeColor.value = '#ffffff';
+                    dateColor.value = '#cccccc';
+                    backgroundColor.value = '#000000';
+                    bgTypeColor.checked = true;
+                    updateBackgroundType();
+                    timeElement.style.color = timeColor.value;
+                    dateElement.style.color = dateColor.value;
+                    break;
+                case 'dark':
+                    timeColor.value = '#ffffff';
+                    dateColor.value = '#aaaaaa';
+                    backgroundColor.value = '#121212';
+                    bgTypeColor.checked = true;
+                    updateBackgroundType();
+                    timeElement.style.color = timeColor.value;
+                    dateElement.style.color = dateColor.value;
+                    break;
+                case 'blue':
+                    timeColor.value = '#ffffff';
+                    dateColor.value = '#bbdefb';
+                    backgroundColor.value = '#2196F3';
+                    bgTypeColor.checked = true;
+                    updateBackgroundType();
+                    timeElement.style.color = timeColor.value;
+                    dateElement.style.color = dateColor.value;
+                    break;
+                case 'purple':
+                    timeColor.value = '#ffffff';
+                    dateColor.value = '#e1bee7';
+                    backgroundColor.value = '#7B1FA2';
+                    bgTypeColor.checked = true;
+                    updateBackgroundType();
+                    timeElement.style.color = timeColor.value;
+                    dateElement.style.color = dateColor.value;
+                    break;
+                case 'nature':
+                    timeColor.value = '#ffffff';
+                    dateColor.value = '#c8e6c9';
+                    backgroundColor.value = '#388E3C';
+                    bgTypeColor.checked = true;
+                    updateBackgroundType();
+                    timeElement.style.color = timeColor.value;
+                    dateElement.style.color = dateColor.value;
+                    break;
+                case 'sunset':
+                    timeColor.value = '#ffffff';
+                    dateColor.value = '#ffccbc';
+                    backgroundColor.value = '#FF9800';
+                    bgTypeColor.checked = true;
+                    updateBackgroundType();
+                    timeElement.style.color = timeColor.value;
+                    dateElement.style.color = dateColor.value;
+                    break;
+            }
+        }
+        
+        // 设置拖拽功能
+        function setupDragging() {
+            let isDragging = false;
+            let offsetX, offsetY;
+            
+            timeDisplay.addEventListener('mousedown', startDrag);
+            timeDisplay.addEventListener('touchstart', startDrag);
+            
+            function startDrag(e) {
+                if (!dragEnabled.checked) return;
+                
+                isDragging = true;
+                
+                // 获取初始位置
+                const rect = timeDisplay.getBoundingClientRect();
+                if (e.type === 'mousedown') {
+                    offsetX = e.clientX - rect.left;
+                    offsetY = e.clientY - rect.top;
+                } else if (e.type === 'touchstart') {
+                    offsetX = e.touches[0].clientX - rect.left;
+                    offsetY = e.touches[0].clientY - rect.top;
+                }
+                
+                // 添加事件监听器
+                document.addEventListener('mousemove', drag);
+                document.addEventListener('touchmove', drag);
+                document.addEventListener('mouseup', stopDrag);
+                document.addEventListener('touchend', stopDrag);
+            }
+            
+            function drag(e) {
+                if (!isDragging) return;
+                
+                let clientX, clientY;
+                
+                if (e.type === 'mousemove') {
+                    clientX = e.clientX;
+                    clientY = e.clientY;
+                } else if (e.type === 'touchmove') {
+                    clientX = e.touches[0].clientX;
+                    clientY = e.touches[0].clientY;
+                }
+                
+                // 计算新位置
+                const x = clientX - offsetX;
+                const y = clientY - offsetY;
+                
+                // 设置新位置
+                timeDisplay.style.left = `${x}px`;
+                timeDisplay.style.top = `${y}px`;
+            }
+            
+            function stopDrag() {
+                isDragging = false;
+                
+                // 移除事件监听器
+                document.removeEventListener('mousemove', drag);
+                document.removeEventListener('touchmove', drag);
+                document.removeEventListener('mouseup', stopDrag);
+                document.removeEventListener('touchend', stopDrag);
+                
+                saveSettings();
+            }
+        }
+        
+        // 保存设置到localStorage
+        function saveSettings() {
+            const settings = {
+                timeColor: timeColor.value,
+                dateColor: dateColor.value,
+                timeFont: timeFont.value,
+                timeSize: timeSize.value,
+                dragEnabled: dragEnabled.checked,
+                bgType: document.querySelector('input[name="bgType"]:checked').value,
+                backgroundColor: backgroundColor.value,
+                timeDisplayPosition: {
+                    left: timeDisplay.style.left,
+                    top: timeDisplay.style.top
+                }
+            };
+            
+            localStorage.setItem('lockScreenSettings', JSON.stringify(settings));
+        }
+        
+        // 从localStorage加载设置
+        function loadSettings() {
+            const savedSettings = localStorage.getItem('lockScreenSettings');
+            
+            if (savedSettings) {
+                const settings = JSON.parse(savedSettings);
+                
+                // 应用设置
+                timeColor.value = settings.timeColor;
+                dateColor.value = settings.dateColor;
+                timeFont.value = settings.timeFont;
+                timeSize.value = settings.timeSize;
+                dragEnabled.checked = settings.dragEnabled;
+                backgroundColor.value = settings.backgroundColor;
+                
+                // 更新时间显示
+                timeElement.style.color = settings.timeColor;
+                dateElement.style.color = settings.dateColor;
+                timeDisplay.style.fontFamily = settings.timeFont;
+                timeElement.style.fontSize = `${settings.timeSize}rem`;
+                timeSizeValue.textContent = `${settings.timeSize}rem`;
+                
+                // 应用背景类型
+                document.querySelector(`#bgType${settings.bgType.charAt(0).toUpperCase() + settings.bgType.slice(1)}`).checked = true;
+                updateBackgroundType();
+                
+                // 应用位置
+                if (settings.timeDisplayPosition.left && settings.timeDisplayPosition.top) {
+                    timeDisplay.style.left = settings.timeDisplayPosition.left;
+                    timeDisplay.style.top = settings.timeDisplayPosition.top;
+                }
+            }
+        }
+        
+        // 重置设置
+        function resetSettings() {
+            localStorage.removeItem('lockScreenSettings');
+            
+            // 重置表单值
+            timeColor.value = '#ffffff';
+            dateColor.value = '#cccccc';
+            timeFont.value = "'Segoe UI', sans-serif";
+            timeSize.value = 5;
+            dragEnabled.checked = true;
+            backgroundColor.value = '#000000';
+            bgTypeColor.checked = true;
+            
+            // 更新UI
+            timeElement.style.color = timeColor.value;
+            dateElement.style.color = dateColor.value;
+            timeDisplay.style.fontFamily = timeFont.value;
+            timeElement.style.fontSize = `${timeSize.value}rem`;
+            timeSizeValue.textContent = `${timeSize.value}rem`;
+            
+            // 重置位置
+            timeDisplay.style.left = '';
+            timeDisplay.style.top = '';
+            
+            // 更新背景
+            updateBackgroundType();
+            
+            // 重置主题
+            themeOptions.forEach(option => option.classList.remove('active'));
+            document.querySelector('.theme-option[data-theme="default"]').classList.add('active');
+        }
+        
+        // 初始化应用
+        init();
+    </script>
+</body>
+</html>
